@@ -38,6 +38,7 @@ let success = run([
         "should get message from id",
         do {
           let response = await day3Actor.getMessage(0);
+            Debug.print("Message Response: " # debug_show(response));
           switch (response) {
             case (#ok(message)) {
               assertTrue(message.content == contentTest);
@@ -58,25 +59,6 @@ let success = run([
         do {
           let newContent : Type.Content = #Text("Test2");
           let response = await day3Actor.updateMessage(0, newContent);
-          switch (response) {
-            case (#ok) {
-              true;
-            };
-            case (#err(message)) {
-              Debug.trap(message);
-            };
-          };
-        },
-      ),
-    ],
-  ),
-  describe(
-    "#deleteMessage",
-    [
-      it(
-        "should delete an existent Message",
-        do {
-          let response = await day3Actor.deleteMessage(0);
           switch (response) {
             case (#ok) {
               true;
@@ -151,7 +133,7 @@ let success = run([
         "should get all messages on Student Wall",
         do {
           let messages = await day3Actor.getAllMessages();
-          assertTrue(messages.size() == 1);
+          assertTrue(messages.size() == 2);
         },
       ),
     ],
@@ -171,6 +153,26 @@ let success = run([
       ),
     ],
   ),
+  describe(
+    "#deleteMessage",
+    [
+      it(
+        "should delete an existent Message",
+        do {
+          let response = await day3Actor.deleteMessage(0);
+          switch (response) {
+            case (#ok) {
+              true;
+            };
+            case (#err(message)) {
+              Debug.trap(message);
+            };
+          };
+        },
+      ),
+    ],
+  )
+
 ]);
 
 if (success == false) {

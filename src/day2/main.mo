@@ -16,12 +16,17 @@ actor class Homework() {
     completed : Bool;
   };
 
-  let homeworkDiary = Buffer.Buffer<Homework>(10);
+  let homeworkDiary = Buffer.Buffer<Homework>(0);
+
+  public shared func reset() : async () {
+    homeworkDiary.clear();
+  };
 
   // Add a new homework task
   public shared func addHomework(homework : Homework) : async Nat {
+    let index=homeworkDiary.size();
     homeworkDiary.add(homework);
-    return homeworkDiary.size() -1;
+    return index;
   };
 
   /* Get a specific homework task by id
