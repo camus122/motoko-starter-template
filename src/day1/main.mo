@@ -1,5 +1,6 @@
 import Float "mo:base/Float";
 import Int "mo:base/Int";
+import Debug "mo:base/Debug";
 
 actor class Calculator() {
   // Step 1 -  Define a mutable variable called `counter`.
@@ -7,6 +8,7 @@ actor class Calculator() {
 
   // Step 2 - Implement add
   public func add(x : Float) : async Float {
+      Debug.print("add");
         counter += x;
         return counter;
   };
@@ -37,6 +39,7 @@ actor class Calculator() {
 
   // Step 7 - Implement query
   public query func see() : async Float {
+      Debug.print("see");
     return counter;
   };
 

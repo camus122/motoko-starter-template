@@ -3,6 +3,10 @@
     "day4": {
       "main": "main.mo",
       "type": "motoko"
+    },
+    "bootcamp": {
+      "main": "BootcampLocalActor.mo",
+      "type": "motoko"
     }
   },
   "defaults": {
