@@ -18,8 +18,20 @@ import Type "Types";
 
 actor class Verifier() {
   type StudentProfile = Type.StudentProfile;
+  stable var studentEntries : [(Principal, StudentProfile)] = [];
+
   //let studentProfileBkp = Array<(Principal,StudentProfile)>[];
   let studentProfileStore = HashMap.HashMap<Principal, StudentProfile>(1, Principal.equal, Principal.hash);
+
+  system func preupgrade() {
+    studentEntries := Iter.toArray(studentProfileStore.entries());
+  };
+
+  system func postupgrade() {
+    for ((studentId, profile) in studentEntries.vals()) {
+      studentProfileStore.put(studentId, profile);
+    };
+  };
 
   // STEP 1 - BEGIN
   public shared ({ caller }) func addMyProfile(profile : StudentProfile) : async Result.Result<(), Text> {
@@ -116,40 +128,42 @@ actor class Verifier() {
   // STEP 3 - BEGIN
   // NOTE: Not possible to develop locally,
   // as actor "aaaa-aa" (aka the IC itself, exposed as an interface) does not exist locally
-  public func verifyOwnership(canisterId : Principal, p : Principal) : async Bool {
-    try {
-      let managementCanister : IC.ManagementCanisterInterface = actor ("aaaa-aa");
-      let statusCanister = await managementCanister.canister_status({
-        canister_id = canisterId;
-      });
-      let controllers = statusCanister.settings.controllers;
-      let controllersText = Array.map<Principal, Text>(controllers, func(x) = Principal.toText(x));
-      switch (Array.find<Principal>(controllers, func(x) = p == x)) {
-        case (?_) { return true };
-        case (null) { return false };
-      };
-    } catch (e) {
-      let message = Error.message(e);
-      let controllers = _parseControllersFromCanisterStatusErrorIfCallerNotController(message);
-      let controllers_text = Array.map<Principal, Text>(controllers, func x = Principal.toText(x));
-      switch (Array.find<Principal>(controllers, func(x) = p == x)) {
-        case (?_) { return true };
-        case (null) { return false };
-      };
+    func parseControllersFromCanisterStatusErrorIfCallerNotController(errorMessage : Text) : [Principal] {
+        let lines = Iter.toArray(Text.split(errorMessage, #text("\n")));
+        let words = Iter.toArray(Text.split(lines[1], #text(" ")));
+        var i = 2;
+        let controllers = Buffer.Buffer<Principal>(0);
+        while (i < words.size()) {
+            controllers.add(Principal.fromText(words[i]));
+            i += 1;
+        };
+        Buffer.toArray<Principal>(controllers);
     };
-  };
 
-  func _parseControllersFromCanisterStatusErrorIfCallerNotController(errorMessage : Text) : [Principal] {
-    let lines = Iter.toArray(Text.split(errorMessage, #text("\n")));
-    let words = Iter.toArray(Text.split(lines[1], #text(" ")));
-    var i = 2;
-    let controllers = Buffer.Buffer<Principal>(0);
-    while (i < words.size()) {
-      controllers.add(Principal.fromText(words[i]));
-      i += 1;
+    public func verifyOwnership(canisterId : Principal, p : Principal) : async Bool {
+        let managementCanister : IC.ManagementCanisterInterface = actor ("aaaaa-aa");
+        try {
+            let canisterStatus = await managementCanister.canister_status({
+                canister_id = canisterId;
+            });
+            let canisterControllers = canisterStatus.settings.controllers;
+            for (controller in canisterControllers.vals()) {
+                if (controller == p) {
+                    return true;
+                };
+            };
+            return false;
+        } catch (e) {
+            let message = Error.message(e);
+            let controlers = parseControllersFromCanisterStatusErrorIfCallerNotController(message);
+            for (controller in controlers.vals()) {
+                if (controller == p) {
+                    return true;
+                };
+            };
+            return false;
+        };
     };
-    Buffer.toArray<Principal>(controllers);
-  };
   // STEP 3 - END
 
   // STEP 4 - BEGIN
@@ -157,8 +171,29 @@ actor class Verifier() {
     try {
       let isOwner = await verifyOwnership(canisterId, p);
       if (isOwner) {
-        let result = await test(canisterId);
-        return _checkTestResult(result);
+        switch (_getTestResult(await test(canisterId))) {
+          case (#ok) {
+            switch (studentProfileStore.get(p)) {
+              case (null) {
+                return #err("The principalId: " #Principal.toText(p) # " profile not found. ");
+              };
+              case (?profile) {
+                let graduatedProfile = {
+                  name = profile.name;
+                  team = profile.team;
+                  graduate = true;
+                };
+                studentProfileStore.put(p, graduatedProfile);
+              };
+            };
+
+            return #ok;
+          };
+          case (#err(errorMessage)) {
+            return #err(errorMessage);
+          };
+        };
+
       } else {
         return #err("The principalId: " #Principal.toText(p) # " is not the owner of canistedId: " # Principal.toText(canisterId) # ".");
       };
@@ -167,7 +202,7 @@ actor class Verifier() {
     };
   };
 
-  func _checkTestResult(result : TestResult) : Result.Result<(), Text> {
+  func _getTestResult(result : TestResult) : Result.Result<(), Text> {
     switch (result) {
       case (#ok) {
         return #ok;
@@ -187,27 +222,4 @@ actor class Verifier() {
 
   // STEP 4 - END
 
-  // STEP 5 - BEGIN
-  public type HttpRequest = HTTP.HttpRequest;
-  public type HttpResponse = HTTP.HttpResponse;
-
-  // NOTE: Not possible to develop locally,
-  // as Timer is not running on a local replica
-  public func activateGraduation() : async () {
-    return ();
-  };
-
-  public func deactivateGraduation() : async () {
-    return ();
-  };
-
-  public query func http_request(request : HttpRequest) : async HttpResponse {
-    return ({
-      status_code = 200;
-      headers = [];
-      body = Text.encodeUtf8("");
-      streaming_strategy = null;
-    });
-  };
-  // STEP 5 - END
 };
